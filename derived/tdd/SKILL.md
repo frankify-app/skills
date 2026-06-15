@@ -1,109 +1,119 @@
 ---
 name: tdd
-description: Test-driven development with red-green-refactor loop. Use when user wants to build features or fix bugs using TDD, mentions "red-green-refactor", wants integration tests, or asks for test-first development.
+description: Test-driven development via red-green-refactor with an auditable commit protocol. Use when implementing any feature, bugfix, refactor, or behavior change before writing implementation code, or when the user mentions TDD, red-green-refactor, or test-first development.
+metadata.derived-from: merge of mattpocock/skills' `tdd` (https://github.com/mattpocock/skills/blob/7afa86d3a5dd96edde06ffa014e16c64e733681e/skills/engineering/tdd/SKILL.md) + obra/superpowers' `test-driven-development` (https://github.com/obra/superpowers/blob/030a222af19c1f3a93c6eb876a7422d8e4fc0162/skills/test-driven-development/SKILL.md)
+metadata.derivation-note: Commit protocol (red/green commits, markers, lint-red.sh) and the vertical-slice framing are the load-bearing original parts. Diff prose against upstream, not the protocol.
 ---
 
 # Test-Driven Development
 
-## Philosophy
+Write test first. Commit it red. Write minimal code to pass. Commit green. Refactor.
 
-**Core principle**: Tests should verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't.
+**Core principle:** tests verify behavior through public interfaces, not implementation. Code can change entirely; tests shouldn't. A test that breaks when you rename an internal function — with no behavior change — was testing implementation. Delete it.
 
-**Good tests** are integration-style: they exercise real code paths through public APIs. They describe _what_ the system does, not _how_ it does it. A good test reads like a specification - "user can checkout with valid cart" tells you exactly what capability exists. These tests survive refactors because they don't care about internal structure.
-
-**Bad tests** are coupled to implementation. They mock internal collaborators, test private methods, or verify through external means (like querying a database directly instead of using the interface). The warning sign: your test breaks when you refactor, but behavior hasn't changed. If you rename an internal function and tests fail, those tests were testing implementation, not behavior.
+No watched failure = no proof the test tests the right thing. Commit history is the evidence; hooks check its structure.
 
 See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
 
-## Anti-Pattern: Horizontal Slices
+## Iron Law
 
-**DO NOT write all tests first, then all implementation.** This is "horizontal slicing" - treating RED as "write all tests" and GREEN as "write all code."
+NO PRODUCTION CODE WITHOUT A FAILING TEST COMMITTED FIRST.
 
-This produces **crap tests**:
+Wrote code before the test? Delete it. Implement fresh from tests. Delete means delete. Exceptions (throwaway prototypes, generated code, config) need human sign-off. Thinking "skip TDD just this once"? That is rationalization.
 
-- Tests written in bulk test _imagined_ behavior, not _actual_ behavior
-- You end up testing the _shape_ of things (data structures, function signatures) rather than user-facing behavior
-- Tests become insensitive to real changes - they pass when behavior breaks, fail when behavior is fine
-- You outrun your headlights, committing to test structure before understanding the implementation
+## 1. Plan (before any code)
 
-**Correct approach**: Vertical slices via tracer bullets. One test → one implementation → repeat. Each test responds to what you learned from the previous cycle. Because you just wrote the code, you know exactly what behavior matters and how to verify it.
+Use the project's domain glossary so test names and interface vocabulary match the codebase; respect ADRs in the area you touch.
 
-```
-WRONG (horizontal):
-  RED:   test1, test2, test3, test4, test5
-  GREEN: impl1, impl2, impl3, impl4, impl5
+- List the *behaviors* to test, not implementation steps. Prioritize critical paths and complex logic — you can't test everything.
+- Design interfaces for [testability](interface-design.md); identify opportunities for [deep modules](deep-modules.md) (small interface, deep implementation)
+- Confirm the public interface and the priority behaviors with the user, then proceed.
 
-RIGHT (vertical):
-  RED→GREEN: test1→impl1
-  RED→GREEN: test2→impl2
-  RED→GREEN: test3→impl3
-  ...
-```
+## 2. Vertical slices, not horizontal
 
-## Workflow
+DO NOT write all tests, then all implementation. That is horizontal slicing and it produces crap tests: written in bulk they test *imagined* behavior and the *shape* of things (signatures, data structures), go insensitive to real changes, and commit you to test structure before you understand the code.
 
-### 1. Planning
-
-When exploring the codebase, use the project's domain glossary so that test names and interface vocabulary match the project's language, and respect ADRs in the area you're touching.
-
-Before writing any code:
-
-- [ ] Confirm with user what interface changes are needed
-- [ ] Confirm with user which behaviors to test (prioritize)
-- [ ] Identify opportunities for [deep modules](deep-modules.md) (small interface, deep implementation)
-- [ ] Design interfaces for [testability](interface-design.md)
-- [ ] List the behaviors to test (not implementation steps)
-- [ ] Get user approval on the plan
-
-Ask: "What should the public interface look like? Which behaviors are most important to test?"
-
-**You can't test everything.** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
-
-### 2. Tracer Bullet
-
-Write ONE test that confirms ONE thing about the system:
+Work in vertical slices — one test → one implementation → repeat. Each test responds to what the last cycle taught you.
 
 ```
-RED:   Write test for first behavior → test fails
-GREEN: Write minimal code to pass → test passes
+WRONG (horizontal):  RED: t1 t2 t3 t4   GREEN: i1 i2 i3 i4
+RIGHT (vertical):    t1→i1  t2→i2  t3→i3 ...
 ```
 
-This is your tracer bullet - proves the path works end-to-end.
+The first slice is a tracer bullet: it proves the path works end to end.
 
-### 3. Incremental Loop
+## 3. Commit protocol
 
-For each remaining behavior:
+One behavior = one RED commit + one GREEN commit. Multiple cycles per branch is fine; prefer one cycle in flight in Go/Rust repos (see markers).
 
-```
-RED:   Write next test → fails
-GREEN: Minimal code to pass → passes
-```
+### RED commit
+- Write one failing test. One behavior, clear name, real code — no mocks unless unavoidable.
+- Run it *unmarked*; watch it fail for the **right reason** (feature missing — not a typo or import error). Passes immediately? It tests existing behavior — fix the test.
+- Add the marker (below), suite green, commit. Tests only, prefix `test(red): `.
 
-Rules:
+| Language | Marker | Strict? |
+|---|---|---|
+| Python (pytest) | `@pytest.mark.xfail(strict=True)` | yes — XPASS fails suite |
+| TS/JS (vitest) | `test.fails(...)` / `it.fails(...)` | yes |
+| TS/JS (jest) | `it.failing(...)` | yes |
+| Go | `//go:build red` + `TestRed` prefix + `red-tests` job | aggregate only |
+| Rust | `#[ignore = "red"]` + `red_` prefix + `red-tests` job | aggregate only |
+| Other | find a strict expected-failure mechanism; none exists → commit unmarked, tell the human the repo lacks red enforcement |
 
-- One test at a time
-- Only enough code to pass current test
-- Don't anticipate future tests
-- Keep tests focused on observable behavior
+Go/Rust build-tag/ignore markers *exclude* tests from the normal suite, so a `red-tests` CI job must run only the marked tests and expect failure (no-op when none exist). Its exit code is aggregate: two red tests in flight, one wrongly passing → the job still passes. Strict markers catch this per-test; the job doesn't.
 
-### 4. Refactor
+### GREEN commit
+- Simplest code that passes. YAGNI — no speculative generality.
+- Remove this cycle's red markers. No other test changes in this commit.
+- Full suite green, output pristine. Fails? Fix the code, not the test. Prefix `feat: `/`fix: `.
+
+### REFACTOR (after green only)
+Remove duplication, improve names, extract helpers, deepen modules. Tests stay green, no new behavior, separate commit. **Never refactor while red.** Then start the next cycle.
 
 After all tests pass, look for [refactor candidates](refactoring.md):
 
-- [ ] Extract duplication
-- [ ] Deepen modules (move complexity behind simple interfaces)
-- [ ] Apply SOLID principles where natural
-- [ ] Consider what new code reveals about existing code
-- [ ] Run tests after each refactor step
+## Enforcement — and its limits
 
-**Never refactor while RED.** Get to GREEN first.
+`lint-red.sh` (ships with skill; wire into prek + CI): `staged`/`commit` modes check that `test(red):` commits touch only test files and add a marker, others add none; `merge` mode rejects any markers in tree; if Go/Rust markers are present, a `red-tests` job must exist.
 
-## Checklist Per Cycle
+Hooks verify commit *structure* and marker hygiene. They do **not** verify you ran the unmarked test and watched it fail for the right reason — that stays on you. Strict markers partially compensate (XPASS catches tests of already-existing behavior). "Lint passed" ≠ "TDD verified."
 
+## Good tests
+
+| Quality | Rule |
+|---|---|
+| Behavioral | Exercises a real path through the public API; survives refactors |
+| Minimal | One thing. "and" in the name? Split it. |
+| Clear | Name states the behavior, not `test1` |
+| Honest | Tests the code, never the mock |
+
+```ts
+// Good — tests real behavior (vitest; jest: it.failing)
+test.fails('retries failed operations 3 times', async () => {
+  let attempts = 0;
+  const op = () => { attempts++; if (attempts < 3) throw new Error('fail'); return 'ok'; };
+  expect(await retryOperation(op)).toBe('ok');
+  expect(attempts).toBe(3);
+});
 ```
-[ ] Test describes behavior, not implementation
-[ ] Test uses public interface only
-[ ] Test would survive internal refactor
-[ ] Code is minimal for this test
-[ ] No speculative features added
-```
+
+## Red flags — STOP, delete, restart
+
+Unmarked test passes before implementation exists · can't explain why the test failed · weakening an assertion in GREEN to make it pass · testing the mock · "just this once" · "I'm being pragmatic, TDD is dogmatic."
+
+Read [testing-anti-patterns.md](testing-anti-patterns.md) to avoid common pitfalls.
+
+## Rationalization table
+
+| Excuse | Reality |
+|---|---|
+| "Too simple to test" | Simple code breaks. The test takes 30s. |
+| "I'll test after" | Tests-after are biased by the implementation: "what does this do?" not "what should this?" |
+| "Deleting hours of code is wasteful" | Sunk cost. Unverified code is debt. |
+| "Test is hard to write" | Hard to test = hard to use. Listen to it; simplify the interface. |
+| "Must mock everything" | Too coupled. Inject dependencies. |
+| "Lint passed, TDD done" | Hooks check structure, not that you watched the failure. |
+
+## When stuck / debugging
+
+Don't know how to test → write the wished-for API and assertion first. Found a bug → write a failing test reproducing it, then run the full protocol. Never fix a bug without a test.
