@@ -35,7 +35,7 @@ DO NOT write all tests, then all implementation. That is horizontal slicing and 
 
 Work in vertical slices — one test → one implementation → repeat. Each test responds to what the last cycle taught you.
 
-```
+```text
 WRONG (horizontal):  RED: t1 t2 t3 t4   GREEN: i1 i2 i3 i4
 RIGHT (vertical):    t1→i1  t2→i2  t3→i3 ...
 ```
@@ -47,27 +47,30 @@ The first slice is a tracer bullet: it proves the path works end to end.
 One behavior = one RED commit + one GREEN commit. Multiple cycles per branch is fine; prefer one cycle in flight in Go/Rust repos (see markers).
 
 ### RED commit
+
 - Write one failing test. One behavior, clear name, real code — no mocks unless unavoidable.
 - Run it *unmarked*; watch it fail for the **right reason** (feature missing — not a typo or import error). Passes immediately? It tests existing behavior — fix the test.
-- Add the marker (below), suite green, commit. Tests only, prefix `test(red): `.
+- Add the marker (below), suite green, commit. Tests only, prefix `test(red):`.
 
 | Language | Marker | Strict? |
-|---|---|---|
+| --- | --- | --- |
 | Python (pytest) | `@pytest.mark.xfail(strict=True)` | yes — XPASS fails suite |
 | TS/JS (vitest) | `test.fails(...)` / `it.fails(...)` | yes |
 | TS/JS (jest) | `it.failing(...)` | yes |
 | Go | `//go:build red` + `TestRed` prefix + `red-tests` job | aggregate only |
 | Rust | `#[ignore = "red"]` + `red_` prefix + `red-tests` job | aggregate only |
-| Other | find a strict expected-failure mechanism; none exists → commit unmarked, tell the human the repo lacks red enforcement |
+| Other | find a strict expected-failure mechanism; none exists → commit unmarked, tell the human the repo lacks red enforcement | n/a |
 
 Go/Rust build-tag/ignore markers *exclude* tests from the normal suite, so a `red-tests` CI job must run only the marked tests and expect failure (no-op when none exist). Its exit code is aggregate: two red tests in flight, one wrongly passing → the job still passes. Strict markers catch this per-test; the job doesn't.
 
 ### GREEN commit
+
 - Simplest code that passes. YAGNI — no speculative generality.
 - Remove this cycle's red markers. No other test changes in this commit.
-- Full suite green, output pristine. Fails? Fix the code, not the test. Prefix `feat: `/`fix: `.
+- Full suite green, output pristine. Fails? Fix the code, not the test. Prefix `feat:`/`fix:`.
 
 ### REFACTOR (after green only)
+
 Remove duplication, improve names, extract helpers, deepen modules. Tests stay green, no new behavior, separate commit. **Never refactor while red.** Then start the next cycle.
 
 After all tests pass, look for [refactor candidates](refactoring.md):
@@ -81,7 +84,7 @@ Hooks verify commit *structure* and marker hygiene. They do **not** verify you r
 ## Good tests
 
 | Quality | Rule |
-|---|---|
+| --- | --- |
 | Behavioral | Exercises a real path through the public API; survives refactors |
 | Minimal | One thing. "and" in the name? Split it. |
 | Clear | Name states the behavior, not `test1` |
@@ -106,7 +109,7 @@ Read [testing-anti-patterns.md](testing-anti-patterns.md) to avoid common pitfal
 ## Rationalization table
 
 | Excuse | Reality |
-|---|---|
+| --- | --- |
 | "Too simple to test" | Simple code breaks. The test takes 30s. |
 | "I'll test after" | Tests-after are biased by the implementation: "what does this do?" not "what should this?" |
 | "Deleting hours of code is wasteful" | Sunk cost. Unverified code is debt. |
