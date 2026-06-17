@@ -1,0 +1,8 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: f4330ec
+_src_path: https://github.com/frankify-app/agentic-engineering-template
+agentic_precommit: prek
+agentic_project_description: Canonical agent skills repo for agentic engineering
+agentic_project_name: Skills
+agentic_project_slug: skills
+agentic_repo_owner: frankify-app
